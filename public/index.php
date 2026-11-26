@@ -55,6 +55,13 @@ function tut_dl(string $file, string $fallback = ''): string {
 function dl_attr(string $file): string {
     return tut_dl_local($file) ? ' download' : ' target="_blank" rel="noopener"';
 }
+function mock_pay_box(string $orderNo): void {
+    echo '<div class="paygroup"><div class="paygrouptitle">测试</div>';
+    echo '<form method="post" action="/mock-pay" style="margin:6px 0">' . csrf_field();
+    echo '<input type="hidden" name="order_no" value="' . e($orderNo) . '">';
+    echo '<button class="btn wide" type="submit">模拟支付成功<span class="muted small" style="margin-left:8px">仅管理员 · 不扣款</span></button>';
+    echo '</form></div>';
+}
 function drawer_script(): void {
     echo '<script>(function(){var b=document.getElementById("menubtn"),d=document.getElementById("drawer"),m=document.getElementById("menumask");'
        . 'if(!b||!d)return;function tog(v){var on=(v===undefined)?!d.classList.contains("on"):v;d.classList.toggle("on",on);m.classList.toggle("on",on);b.setAttribute("aria-expanded",on?"true":"false");document.body.style.overflow=on?"hidden":"";}'
@@ -324,12 +331,6 @@ elseif (preg_match('#^/pay/([A-Za-z0-9]+)$#', $path, $m)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $o['status'] === 'pending') {
         csrf_check();
         $chosen = (string)($_POST['ch'] ?? '');
-        // 测试模式下管理员点任意支付方式 = 直接完成支付（不扣款、不走网关）
-        if (test_mode() && is_admin() && $chosen !== '') {
-            mark_paid($o['order_no'], 'MOCK' . time(), 'mock');
-            flash('测试模式：已直接完成支付');
-            redirect('/order/' . $o['order_no']);
-        }
         if (in_array($chosen, pay_coming_soon(), true)) { flash('该支付方式开发中，请选择其他方式', 'err'); redirect('/pay/' . $o['order_no']); }
         if (!isset($avail[$chosen])) { flash('该支付方式暂不可用', 'err'); redirect('/pay/' . $o['order_no']); }
         try {
@@ -390,17 +391,12 @@ elseif (preg_match('#^/pay/([A-Za-z0-9]+)$#', $path, $m)) {
             echo '<div class="alert ' . ($o['status'] === 'expired' ? 'err' : 'warn') . '">' . e($stText) . '，请到 <a href="/order/' . e($o['order_no']) . '">订单详情</a> 查看。</div>';
         } elseif (!$avail) {
             if (test_mode() && is_admin()) {
-                echo '<div class="alert warn">测试模式：当前没有配置任何支付方式，可直接模拟开通。</div>';
-                echo '<form method="post" action="/mock-pay">' . csrf_field();
-                echo '<input type="hidden" name="order_no" value="' . e($o['order_no']) . '">';
-                echo '<button class="btn wide" type="submit">模拟支付成功</button></form>';
+                echo '<div class="muted small" style="margin:14px 0 4px">选择支付方式</div>';
+                mock_pay_box($o['order_no']);
             } else {
                 echo '<div class="alert warn">支付通道维护中，请稍后再试或联系客服。</div>';
             }
         } else {
-            if (test_mode() && is_admin()) {
-                echo '<div class="alert warn">测试模式已开启：点击下面任意支付方式会直接完成支付并发货，不会真实扣款。</div>';
-            }
             echo '<div class="muted small" style="margin:14px 0 4px">选择支付方式</div>';
             // 只显示真正可用的通道，未开通/开发中的一律不渲染
             foreach (pay_categories() as $cat) {
@@ -418,6 +414,7 @@ elseif (preg_match('#^/pay/([A-Za-z0-9]+)$#', $path, $m)) {
                 }
                 echo '</div>';
             }
+            if (test_mode() && is_admin()) mock_pay_box($o['order_no']);
             echo '<p class="muted center small">支付完成后自动开通，无需手动刷新。</p>';
         }
         echo '</div>';
