@@ -1,0 +1,10 @@
+# 运行时数据，不进仓库
+data/
+app/config.php
+install.lock
+public/uploads/*
+!public/uploads/.htaccess
+# 打包产物
+*.zip
+*.tar
+*.tar.gz

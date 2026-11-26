@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>宝塔部署教程 · 云商城商城</title>
+<style>
+:root{--g:#2f6b45;--bg:#f6f8f6;--c:#1c2a22;--m:#6b7d72}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--c);font:15px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:28px 18px 80px;background:#fff;min-height:100vh}
+h1{font-size:26px;color:var(--g);margin:0 0 6px;letter-spacing:.5px}
+h2{font-size:20px;color:var(--g);margin:34px 0 12px;padding-left:10px;border-left:4px solid var(--g)}
+h3{font-size:16px;margin:20px 0 8px}
+h4{font-size:15px;margin:16px 0 6px;color:var(--m)}
+p{margin:8px 0}
+hr{border:0;border-top:1px solid #e6ece8;margin:26px 0}
+ul{padding-left:22px;margin:8px 0}
+li{margin:4px 0}
+code{background:#eef3ef;color:#1f5c3a;padding:1px 5px;border-radius:4px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{background:#0e1a14;color:#d8e8de;padding:14px 16px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+th,td{border:1px solid #e2eae5;padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f0f6f2;color:var(--g);font-weight:600}
+tr:nth-child(even) td{background:#fafcfa}
+blockquote{margin:12px 0;padding:10px 14px;background:#f2f8f4;border-left:3px solid var(--g);color:#33513f;border-radius:0 8px 8px 0}
+.chk{margin:5px 0;color:#2a4636}
+a{color:var(--g)}
+@media(max-width:600px){
+ body{font-size:14px} .wrap{padding:18px 12px 60px}
+ h1{font-size:22px} h2{font-size:18px}
+ table{font-size:13px} th,td{padding:6px 8px}
+ pre{font-size:12px;padding:12px}
+}
+</style></head><body><div class="wrap"><h1>云商城商城 · 宝塔面板部署教程</h1>
+
+<blockquote>适用：宝塔 8.x / 9.x，Debian / Ubuntu / CentOS</blockquote>
+<blockquote>安装包：<code>vpn-shop-v1.0.zip</code></blockquote>
+<blockquote>最终效果：前台卖套餐 → 支付 → 自动在 Hiddify 建号 → 用户拿到聚合订阅 → 后台看用量大屏</blockquote>
+
+<hr>
+
+<h2>〇、先看这张表</h2>
+
+<table><thead><tr><th>步骤</th><th>做什么</th><th>大约耗时</th></tr></thead><tbody><tr><td>1</td><td>装 Nginx + PHP 8.3 + MySQL</td><td>5 分钟</td></tr><tr><td>2</td><td>添加站点、设运行目录 <code>/public</code>、配伪静态</td><td>3 分钟</td></tr><tr><td>3</td><td>上传解压安装包</td><td>2 分钟</td></tr><tr><td>4</td><td>访问 <code>/install.php</code> 完成安装</td><td>2 分钟</td></tr><tr><td>5</td><td>加两条计划任务</td><td>2 分钟</td></tr><tr><td>6</td><td>后台加服务器、套餐、支付</td><td>5 分钟</td></tr></tbody></table>
+
+<hr>
+
+<h2>一、环境准备</h2>
+
+<p>宝塔 → <strong>软件商店</strong>，安装：</p>
+
+<ul>
+<li>Nginx（1.22 以上都行）</li>
+<li>PHP <strong>8.3</strong>（8.1 也可以，别低于 8.1）</li>
+<li>MySQL 5.7 / 8.0（也可以用 SQLite，免装数据库）</li>
+</ul>
+
+<h3>PHP 扩展</h3>
+
+<p>软件商店 → PHP 8.3 → <strong>设置</strong> → <strong>安装扩展</strong>，确认已装：</p>
+
+<table><thead><tr><th>扩展</th><th>用途</th></tr></thead><tbody><tr><td><code>pdo_mysql</code></td><td>连 MySQL</td></tr><tr><td><code>curl</code></td><td>调 Hiddify 面板、支付接口</td></tr><tr><td><code>mbstring</code></td><td>中文处理</td></tr><tr><td><code>openssl</code></td><td>加密密钥、微信支付</td></tr><tr><td><code>pdo_sqlite</code></td><td>只有用 SQLite 才需要</td></tr></tbody></table>
+
+<h3>禁用函数</h3>
+
+<p>PHP 设置 → <strong>禁用函数</strong> 里，本项目<strong>不需要</strong> <code>putenv</code>、<code>proc_open</code>、<code>exec</code>、<code>shell_exec</code>，保持宝塔默认即可。</p>
+
+<blockquote>如果你之前为了别的程序放开过，也不影响。</blockquote>
+
+<hr>
+
+<h2>二、添加站点</h2>
+
+<p>宝塔 → <strong>网站</strong> → <strong>添加站点</strong>：</p>
+
+<table><thead><tr><th>项</th><th>填什么</th></tr></thead><tbody><tr><td>域名</td><td>你的域名，如 <code>shop.example.com</code></td></tr><tr><td>根目录</td><td>默认 <code>/www/wwwroot/shop.example.com</code></td></tr><tr><td>FTP</td><td>不创建</td></tr><tr><td>数据库</td><td>先不创建（第 4 步再建，或选 SQLite）</td></tr><tr><td>PHP 版本</td><td>8.3</td></tr></tbody></table>
+
+<p>添加完成后进入 <strong>设置</strong>。</p>
+
+<h3>2.1 网站目录</h3>
+
+<p>设置 → <strong>网站目录</strong>：</p>
+
+<ul>
+<li>运行目录：选择 <strong><code>/public</code></strong> ← 这一步不做，首页会 404</li>
+<li>防跨站攻击（open_basedir）：保持开启即可</li>
+</ul>
+
+<h3>2.2 伪静态</h3>
+
+<p>设置 → <strong>伪静态</strong>，粘贴：</p>
+
+<pre><code>location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}</code></pre>
+
+<p>保存。</p>
+
+<blockquote>没配伪静态的典型现象：只有首页能开，<code>/query</code>、<code>/admin/login</code>、<code>/s/xxx</code> 全部 404。</blockquote>
+
+<hr>
+
+<h2>三、上传安装包</h2>
+
+<p>宝塔 → <strong>文件</strong> → 进入 <code>/www/wwwroot/shop.example.com</code> →</p>
+
+<ul>
+<li class="ol">上传 <code>vpn-shop-v1.0.zip</code></li>
+<li class="ol">右键 → <strong>解压</strong></li>
+</ul>
+
+<p>解压后如果多出一层 <code>vpn-shop/</code> 目录，进入它，<strong>全选里面的内容</strong>剪切到站点根目录，保证结构是：</p>
+
+<pre><code>/www/wwwroot/shop.example.com/
+├── app/
+├── bin/
+├── public/          ← 运行目录
+│   ├── index.php
+│   ├── install.php
+│   └── assets/
+└── README.md</code></pre>
+
+<blockquote>正确：<code>/www/wwwroot/站点/public/index.php</code></blockquote>
+<blockquote>错误：<code>/www/wwwroot/站点/vpn-shop/public/index.php</code></blockquote>
+
+<h3>3.1 权限</h3>
+
+<p>宝塔 → 文件 → 右键站点目录 → <strong>权限</strong>：</p>
+
+<ul>
+<li>所有者：<code>www</code></li>
+<li>权限：<code>755</code></li>
+<li>勾选「应用到子目录」</li>
+</ul>
+
+<p>或者用终端：</p>
+
+<pre><code>chown -R www:www /www/wwwroot/shop.example.com
+find /www/wwwroot/shop.example.com -type d -exec chmod 755 {} \;
+chmod -R 775 /www/wwwroot/shop.example.com/data 2&gt;/dev/null
+chmod 775 /www/wwwroot/shop.example.com/app</code></pre>
+
+<blockquote><code>app/</code> 要可写（安装时写 <code>config.php</code>），<code>data/</code> 要可写（SQLite 和日志）。</blockquote>
+
+<hr>
+
+<h2>四、建数据库</h2>
+
+<h3>方式 A：MySQL（推荐）</h3>
+
+<p>宝塔 → <strong>数据库</strong> → <strong>添加数据库</strong>：</p>
+
+<table><thead><tr><th>项</th><th>填什么</th></tr></thead><tbody><tr><td>数据库名</td><td><code>vpnshop</code></td></tr><tr><td>用户名</td><td><code>vpnshop</code></td></tr><tr><td>密码</td><td>点随机生成，<strong>记下来</strong></td></tr><tr><td>字符集</td><td><code>utf8mb4</code></td></tr><tr><td>权限</td><td>本地服务器</td></tr></tbody></table>
+
+<h3>方式 B：SQLite</h3>
+
+<p>不用建库，安装时选 SQLite 即可。适合小流量、单机、想省事。数据库文件会生成在 <code>data/shop.db</code>。</p>
+
+<hr>
+
+<h2>五、安装</h2>
+
+<p>浏览器打开：</p>
+
+<pre><code>https://你的域名/install.php</code></pre>
+
+<p>按向导填写：</p>
+
+<ul>
+<li class="ol"><strong>数据库类型</strong>：MySQL 或 SQLite</li>
+<li class="ol"><strong>数据库地址</strong>：<code>127.0.0.1</code>，端口 <code>3306</code></li>
+<li class="ol"><strong>数据库名 / 用户名 / 密码</strong>：第 4 步创建的</li>
+<li class="ol"><strong>站点名称</strong>：如「云商城」</li>
+<li class="ol"><strong>管理员账号 / 密码</strong>：密码至少 8 位，<strong>记好</strong></li>
+</ul>
+
+<p>点「开始安装」。成功后会：</p>
+
+<ul>
+<li>创建全部数据表</li>
+<li>写入 3 个默认套餐</li>
+<li>生成 <code>install.lock</code></li>
+</ul>
+
+<h3>⚠️ 安装完成后立刻做两件事</h3>
+
+<ul>
+<li class="ol"><strong>删除 <code>public/install.php</code></strong></li>
+<li class="ol">确认 <code>install.lock</code> 存在（没有就手动建一个空文件）</li>
+</ul>
+
+<p>不删的话，任何人都能重新跑安装向导覆盖你的数据。</p>
+
+<hr>
+
+<h2>六、申请 SSL</h2>
+
+<p>宝塔 → 网站 → 设置 → <strong>SSL</strong>：</p>
+
+<ul>
+<li>Let&#x27;s Encrypt → 勾选域名 → 申请</li>
+<li>开启 <strong>强制 HTTPS</strong></li>
+</ul>
+
+<blockquote>支付回调必须是 HTTPS，微信 H5 / JSAPI 更要求备案域名，别用 IP 收款。</blockquote>
+
+<hr>
+
+<h2>七、计划任务（关键）</h2>
+
+<p>宝塔 → <strong>计划任务</strong> → 添加任务，<strong>两条都要加</strong>。</p>
+
+<h3>7.1 用量同步（每 5 分钟）</h3>
+
+<table><thead><tr><th>项</th><th>值</th></tr></thead><tbody><tr><td>任务类型</td><td>Shell 脚本</td></tr><tr><td>任务名称</td><td>订阅用量同步</td></tr><tr><td>执行周期</td><td>N 分钟 → 5 分钟</td></tr></tbody></table>
+
+<p>脚本内容：</p>
+
+<pre><code>runuser -u www -- /www/server/php/83/bin/php /www/wwwroot/shop.example.com/bin/sync_usage.php &gt;&gt; /www/wwwlogs/vpn-shop-sync.log 2&gt;&amp;1</code></pre>
+
+<h3>7.2 到期 / 流量提醒（每 30 分钟）</h3>
+
+<pre><code>runuser -u www -- /www/server/php/83/bin/php /www/wwwroot/shop.example.com/bin/notify.php &gt;&gt; /www/wwwlogs/vpn-shop-notify.log 2&gt;&amp;1</code></pre>
+
+<h3>为什么必须 <code>runuser -u www</code></h3>
+
+<p>宝塔计划任务默认以 <strong>root</strong> 运行。如果直接用 root 跑 PHP：</p>
+
+<ul>
+<li>SQLite 会生成 root 所有的 <code>shop.db-wal</code> / <code>shop.db-shm</code></li>
+<li>之后网站（www 用户）写库就会报 <strong>readonly / database is locked</strong></li>
+<li>而且日志文件如果是 root 建的，www 也写不进去</li>
+</ul>
+
+<p>所以统一用 <code>www</code> 身份跑。</p>
+
+<p>找不到 PHP 路径时执行：</p>
+
+<pre><code>ls /www/server/php/*/bin/php</code></pre>
+
+<p>一般 8.3 就是 <code>/www/server/php/83/bin/php</code>。</p>
+
+<h3>验证是否真的在跑</h3>
+
+<pre><code>tail -n 5 /www/wwwlogs/vpn-shop-sync.log</code></pre>
+
+<p>正常输出类似：</p>
+
+<pre><code>[2026-11-25 06:00:01] pools=1 ok=1 err=0 disabled=0 0.21s</code></pre>
+
+<p>没有日志 ≠ 在跑。宝塔计划任务页面显示「成功」只代表 shell 返回 0。</p>
+
+<hr>
+
+<h2>八、后台初始化</h2>
+
+<p>访问：</p>
+
+<pre><code>https://你的域名/admin/login</code></pre>
+
+<p>用安装时设置的管理员账号登录。登录后就是<strong>数据大屏</strong>，左上角三条杠是菜单。</p>
+
+<h3>8.1 添加 Hiddify 服务器</h3>
+
+<p>菜单 → <strong>服务器</strong> → 添加：</p>
+
+<table><thead><tr><th>字段</th><th>说明</th></tr></thead><tbody><tr><td>名称</td><td>留空自动生成「地区-城市」</td></tr><tr><td>管理地址</td><td>Hiddify <strong>超管链接</strong>，形如 <code>https://面板域名/后台路径/超管UUID</code></td></tr><tr><td>密码</td><td>面板管理员密码</td></tr><tr><td>地区</td><td>留空自动按 IP 识别，也可手填「香港」「美国-洛杉矶」</td></tr><tr><td>面板时区</td><td><strong>留空</strong>即可，系统自动探测（每台独立，加美国/欧洲节点不用改）</td></tr></tbody></table>
+
+<p>保存后系统会自动登录面板、读取订阅路径、检测地区。</p>
+
+<h3>8.2 套餐</h3>
+
+<p>菜单 → <strong>套餐</strong>：</p>
+
+<ul>
+<li><code>single</code>（单地区）：用户选一台服务器，只发那台的订阅</li>
+<li><code>all</code>（全地区）：用户买一次，系统在所有已上架服务器各建一个号，合成<strong>一个聚合订阅链接</strong>，按 UA 自动返回 Clash / sing-box / base64</li>
+</ul>
+
+<p>设置好价格、流量、有效期后上架。</p>
+
+<h3>8.3 支付</h3>
+
+<p>菜单 → <strong>设置 → 支付设置</strong>，三大类，每种方式独立配置：</p>
+
+<ul>
+<li><strong>易支付</strong>：接口地址、PID、密钥；回调 <code>/notify</code></li>
+<li><strong>支付宝官方</strong>：电脑网站 / 手机网站 / 当面付，各自填 AppID、应用私钥、支付宝公钥</li>
+<li><strong>微信官方</strong>：Native 扫码 / H5 / JSAPI，各自填商户号、证书序列号、私钥、APIv3 密钥</li>
+</ul>
+
+<p>回调地址：</p>
+
+<pre><code>易支付    https://你的域名/notify
+支付宝    https://你的域名/notify/alipay
+微信      https://你的域名/notify/wechat</code></pre>
+
+<p>配置完建议先用 1 分钱的套餐真实支付一次，确认订单变「已支付」且自动建号。</p>
+
+<h3>8.4 邮件通知</h3>
+
+<p>设置 → <strong>邮件通知</strong>：</p>
+
+<table><thead><tr><th>字段</th><th>QQ 邮箱示例</th></tr></thead><tbody><tr><td>SMTP 服务器</td><td><code>smtp.qq.com</code></td></tr><tr><td>端口</td><td><code>465</code>（SSL）</td></tr><tr><td>加密</td><td>SSL</td></tr><tr><td>邮箱账号</td><td><code>xxx@qq.com</code></td></tr><tr><td>授权码</td><td>QQ 邮箱设置里生成的<strong>授权码</strong>，不是登录密码</td></tr></tbody></table>
+
+<p>先点「发送测试邮件」，收到后再勾选启用。</p>
+
+<hr>
+
+<h2>九、上线检查清单</h2>
+
+<div class="chk">☐ 首页能打开，套餐显示正常</div>
+<div class="chk">☐ <code>/admin/login</code> 能登录</div>
+<div class="chk">☐ <code>/install.php</code> 已删除，<code>install.lock</code> 存在</div>
+<div class="chk">☐ 隐私/条款页（如有）可访问</div>
+<div class="chk">☐ 计划任务日志每 5 分钟有新行</div>
+<div class="chk">☐ 下一单测试订单 → 支付 → 自动建号</div>
+<div class="chk">☐ <code>/s/&lt;token&gt;</code> 页面能打开，二维码正常</div>
+<div class="chk">☐ 后台概览「今日流量」不是 0（有真实用量后）</div>
+<div class="chk">☐ 手机打开首页 / 查询页 / 订阅页无横向滚动</div>
+
+<p>命令行快速验证：</p>
+
+<pre><code>curl -I https://你的域名/
+curl -I https://你的域名/admin/login
+curl -s https://你的域名/install.php -o /dev/null -w &#x27;%{http_code}\n&#x27;   # 应该是 404</code></pre>
+
+<hr>
+
+<h2>十、常见问题</h2>
+
+<p><strong>首页 404 / 只有首页能开</strong></p>
+<p>运行目录没设成 <code>/public</code>，或伪静态没配。</p>
+
+<p><strong>500 / 白屏</strong></p>
+<p>看 <code>/www/wwwlogs/你的域名.error.log</code>。最常见是 PHP 版本低于 8.1，或 <code>app/</code>、<code>data/</code> 不可写。</p>
+
+<p><strong>安装页提示数据库连接失败</strong></p>
+<ul>
+<li>数据库名/用户名/密码核对</li>
+<li>MySQL 8 的用户认证方式改成 <code>mysql_native_password</code></li>
+<li>确认 <code>pdo_mysql</code> 扩展已装</li>
+</ul>
+
+<p><strong>后台加服务器提示登录失败</strong></p>
+<p>管理地址必须是<strong>超管链接</strong>（带 <code>/后台路径/UUID</code>），不是面板首页；密码是面板管理员密码。</p>
+
+<p><strong>流量一直 0.00GB</strong></p>
+<p>先看计划任务日志；再手动跑一次：</p>
+
+<pre><code>sudo -u www /www/server/php/83/bin/php /www/wwwroot/你的域名/bin/sync_usage.php</code></pre>
+
+<p><strong>最近使用时间偏差几小时</strong></p>
+<p>系统会按每台面板的时区自动换算；如果某台面板探测不到，可在服务器编辑页手填「面板时区（小时）」，例如 <code>9</code>、<code>-5</code>、<code>3.5</code>。</p>
+
+<p><strong>订阅链接打开是乱码</strong></p>
+<p>那是客户端格式（base64）。给用户发 <code>/s/&lt;token&gt;</code> 页面，里面有流量、到期、二维码。</p>
+
+<p><strong>提醒邮件发不出</strong></p>
+<p>先在后台点「发送测试邮件」：</p>
+<ul>
+<li><code>535</code> → 授权码不对</li>
+<li>连接超时 → 主机商封了 465，换 587 + STARTTLS</li>
+</ul>
+
+<hr>
+
+<h2>十一、升级与备份</h2>
+
+<h3>备份（建议每天）</h3>
+
+<p>宝塔 → 计划任务 → 备份网站 + 备份数据库；或手动：</p>
+
+<pre><code>tar -czf /www/backup/shop_$(date +%F).tar.gz -C /www/wwwroot shop.example.com
+# MySQL
+mysqldump -u vpnshop -p vpnshop &gt; /www/backup/shop_$(date +%F).sql
+# SQLite
+sqlite3 /www/wwwroot/shop.example.com/data/shop.db &quot;.backup &#x27;/www/backup/shop.db&#x27;&quot;</code></pre>
+
+<h3>升级</h3>
+
+<ul>
+<li class="ol">先备份</li>
+<li class="ol">覆盖 <code>app/</code> 与 <code>public/</code> 下的文件</li>
+<li class="ol"><strong>保留</strong> <code>app/config.php</code> 和 <code>install.lock</code></li>
+<li class="ol">访问一次前台，确认无报错</li>
+</ul>
+
+<hr>
+
+<h2>附：目录说明</h2>
+
+<table><thead><tr><th>路径</th><th>作用</th></tr></thead><tbody><tr><td><code>public/</code></td><td>网站运行目录，唯一对公网开放</td></tr><tr><td><code>app/</code></td><td>后端代码与配置，禁止直接访问</td></tr><tr><td><code>data/</code></td><td>SQLite 数据库、日志、面板 cookie</td></tr><tr><td><code>bin/sync_usage.php</code></td><td>用量同步（5 分钟）</td></tr><tr><td><code>bin/notify.php</code></td><td>到期/流量提醒（30 分钟）</td></tr><tr><td><code>install.lock</code></td><td>安装锁，删除后会被要求重装</td></tr></tbody></table>
+
+<hr>
+
+<p>版本 1.0 · 适用于 PHP 8.1+</p>
+</div></body></html>
