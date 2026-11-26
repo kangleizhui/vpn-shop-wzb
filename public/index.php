@@ -324,6 +324,12 @@ elseif (preg_match('#^/pay/([A-Za-z0-9]+)$#', $path, $m)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $o['status'] === 'pending') {
         csrf_check();
         $chosen = (string)($_POST['ch'] ?? '');
+        // 测试模式下管理员点任意支付方式 = 直接完成支付（不扣款、不走网关）
+        if (test_mode() && is_admin() && $chosen !== '') {
+            mark_paid($o['order_no'], 'MOCK' . time(), 'mock');
+            flash('测试模式：已直接完成支付');
+            redirect('/order/' . $o['order_no']);
+        }
         if (in_array($chosen, pay_coming_soon(), true)) { flash('该支付方式开发中，请选择其他方式', 'err'); redirect('/pay/' . $o['order_no']); }
         if (!isset($avail[$chosen])) { flash('该支付方式暂不可用', 'err'); redirect('/pay/' . $o['order_no']); }
         try {
@@ -382,14 +388,19 @@ elseif (preg_match('#^/pay/([A-Za-z0-9]+)$#', $path, $m)) {
         } elseif ($o['status'] !== 'pending') {
             $stText = $o['status'] === 'expired' ? '订单已失效（超过 24 小时未付款），请重新下单' : ('订单状态：' . $o['status']);
             echo '<div class="alert ' . ($o['status'] === 'expired' ? 'err' : 'warn') . '">' . e($stText) . '，请到 <a href="/order/' . e($o['order_no']) . '">订单详情</a> 查看。</div>';
-        } elseif (test_mode() && is_admin()) {
-            echo '<div class="alert warn">当前为测试模式（仅管理员可见），点击下方按钮模拟支付成功。</div>';
-            echo '<form method="post" action="/mock-pay">' . csrf_field();
-            echo '<input type="hidden" name="order_no" value="' . e($o['order_no']) . '">';
-            echo '<button class="btn wide" type="submit">模拟支付成功</button></form>';
         } elseif (!$avail) {
-            echo '<div class="alert warn">支付通道维护中，请稍后再试或联系客服。</div>';
+            if (test_mode() && is_admin()) {
+                echo '<div class="alert warn">测试模式：当前没有配置任何支付方式，可直接模拟开通。</div>';
+                echo '<form method="post" action="/mock-pay">' . csrf_field();
+                echo '<input type="hidden" name="order_no" value="' . e($o['order_no']) . '">';
+                echo '<button class="btn wide" type="submit">模拟支付成功</button></form>';
+            } else {
+                echo '<div class="alert warn">支付通道维护中，请稍后再试或联系客服。</div>';
+            }
         } else {
+            if (test_mode() && is_admin()) {
+                echo '<div class="alert warn">测试模式已开启：点击下面任意支付方式会直接完成支付并发货，不会真实扣款。</div>';
+            }
             echo '<div class="muted small" style="margin:14px 0 4px">选择支付方式</div>';
             // 只显示真正可用的通道，未开通/开发中的一律不渲染
             foreach (pay_categories() as $cat) {
@@ -1744,7 +1755,7 @@ elseif ($path === '/admin/settings') {
            . 'lock();})();</script>';
 
         echo '<details class="fold"' . (setting('pay_channels') === '' ? ' open' : '') . '><summary>支付设置</summary><div class="foldbody">';
-        echo '<label class="row"><input type="checkbox" name="test_mode" value="1" ' . (test_mode() ? 'checked' : '') . '> 测试模式（无需真实支付，管理员可模拟开通）</label>';
+        echo '<label class="row"><input type="checkbox" name="test_mode" value="1" ' . (test_mode() ? 'checked' : '') . '> 测试模式（管理员在收银台点任意支付方式即直接开通，不真实扣款）</label>';
         echo '<p class="muted small" style="margin:10px 0 2px">点开每一行可展开该方式的配置；只显示「已启用 + 配置完整」的方式。</p>';
         $enabledIds = pay_enabled_ids();
         $aliOn = in_array('alipay_page', $enabledIds, true) || in_array('alipay_wap', $enabledIds, true) || in_array('alipay_qr', $enabledIds, true);
