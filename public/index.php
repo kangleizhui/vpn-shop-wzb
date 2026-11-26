@@ -1752,7 +1752,7 @@ elseif ($path === '/admin/settings') {
            . 'lock();})();</script>';
 
         echo '<details class="fold"' . (setting('pay_channels') === '' ? ' open' : '') . '><summary>支付设置</summary><div class="foldbody">';
-        echo '<label class="row"><input type="checkbox" name="test_mode" value="1" ' . (test_mode() ? 'checked' : '') . '> 测试模式（管理员在收银台点任意支付方式即直接开通，不真实扣款）</label>';
+        echo '<label class="row"><input type="checkbox" name="test_mode" value="1" ' . (test_mode() ? 'checked' : '') . '> 测试模式（收银台多出「模拟支付成功」选项，仅管理员可见，不扣款）</label>';
         echo '<p class="muted small" style="margin:10px 0 2px">点开每一行可展开该方式的配置；只显示「已启用 + 配置完整」的方式。</p>';
         $enabledIds = pay_enabled_ids();
         $aliOn = in_array('alipay_page', $enabledIds, true) || in_array('alipay_wap', $enabledIds, true) || in_array('alipay_qr', $enabledIds, true);
