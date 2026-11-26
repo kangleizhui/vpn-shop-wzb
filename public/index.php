@@ -2207,7 +2207,7 @@ elseif ($path === '/tutorial') {
         $dlMac  = tut_dl('Hiddify-MacOS.dmg');
         echo '<section class="panel" style="margin-top:26px">';
         echo '<h2 class="tut-h2"><span class="num">1</span> 下载客户端</h2>';
-        echo '<p class="muted small" style="margin:6px 0 0">安装包随项目一起部署，Windows / Android 直接走本站下载，不依赖外部链接，不会失效；Mac 版从本项目的 Releases 下载。</p>';
+        echo '<p class="muted small" style="margin:6px 0 0">选择你正在使用的设备下载安装，装好后看第 3 步导入订阅。</p>';
         echo '<div class="tutdl">';
         echo '<div class="dlcard"><div class="os">🪟 Windows</div><div class="meta">安装版 · x64 · 约 49 MB</div>'
            . '<a class="btn" href="' . e($dlWin) . '"' . dl_attr('Hiddify-Windows-Setup-x64.exe') . '>下载 Windows 版</a></div>';
