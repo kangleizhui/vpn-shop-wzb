@@ -445,6 +445,7 @@ function setting(string $k, string $default = ''): string {
     return array_key_exists($k, $GLOBALS['__settings_cache']) ? $GLOBALS['__settings_cache'][$k] : $default;
 }
 function set_setting(string $k, string $v): void {
+    setting($k); // 确保设置缓存已从库里初始化，否则只写入单条后其它设置都会读成空
     if (db_driver() === 'mysql') {
         $st = db()->prepare("INSERT INTO settings (k,v) VALUES (?,?) ON DUPLICATE KEY UPDATE v=VALUES(v)");
     } else {
@@ -558,9 +559,15 @@ function server_region(array $s): string {
     if (($s['region_auto'] ?? '') !== '') return (string)$s['region_auto'];
     return '未设置';
 }
+function server_city(array $s): string {
+    // 填了自定义地区就不再拼自动检测的城市，避免出现「美国-水牛城 · 多伦多」
+    if (($s['region'] ?? '') !== '') return '';
+    return (string)($s['city'] ?? '');
+}
 function server_label(array $s): string {
     $r = server_region($s);
-    return $r . (!empty($s['city']) ? ' · ' . $s['city'] : '') . '（' . $s['name'] . '）';
+    $c = server_city($s);
+    return $r . ($c !== '' ? ' · ' . $c : '') . '（' . $s['name'] . '）';
 }
 function shop_ready(): bool { return count(all_servers(true)) > 0; }
 
